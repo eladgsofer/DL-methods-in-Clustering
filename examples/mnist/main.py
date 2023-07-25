@@ -82,51 +82,54 @@ def main(cuda, batch_size, pretrain_epochs, finetune_epochs, testing_mode, clust
     torch.save(autoencoder, 'ae_train.pt')
     writer.flush()
 
-    print("DEC/IDEC stage.")
-    model = DEC_IDEC(cluster_number=10, hidden_dimension=10, encoder=autoencoder.encoder, decoder=autoencoder.decoder,
-                     mode='IDEC')
-    if cuda:
-        model.cuda()
-    dec_optimizer = SGD(model.parameters(), lr=0.01, momentum=0.9)
-    train(dataset=ds_train, model=model, epochs=clustering_epochs,
-          batch_size=256, optimizer=dec_optimizer, stopping_delta=0.000001, cuda=cuda, )
-    torch.save(model, 'dec.pt')
+    for lambda_ in np.linspace(0.2, 4, 6):
+        print("IDEC stage {0}".format(lambda_.item()))
+        autoencoder = torch.load('ae_train.pt')
+        model = DEC_IDEC(cluster_number=10, hidden_dimension=10, encoder=autoencoder.encoder,
+                         decoder=autoencoder.decoder,
+                         mode='IDEC', lambda_=lambda_.item())
+        if cuda:
+            model.cuda()
+        dec_optimizer = SGD(model.parameters(), lr=0.01, momentum=0.9)
+        train(dataset=ds_train, model=model, epochs=clustering_epochs, update_freq=50,
+              batch_size=256, optimizer=dec_optimizer, stopping_delta=0.000001, cuda=cuda, )
+        torch.save(model, 'dec{0}.pt'.format(lambda_.item()))
 
-    predicted, actual, embeddings = predict(ds_train, model, 1024, silent=True, return_actual=True, cuda=cuda,
-                                            return_embeddings=True)
-    actual = actual.cpu().numpy()
-    predicted = predicted.cpu().numpy()
+        predicted, actual, embeddings = predict(ds_train, model, 1024, silent=True, return_actual=True, cuda=cuda,
+                                                return_embeddings=True)
+        actual = actual.cpu().numpy()
+        predicted = predicted.cpu().numpy()
 
-    tsne = TSNE(n_components=2, verbose=1, random_state=123)
-    z = tsne.fit_transform(embeddings)
-    df = pd.DataFrame()
-    df["y"] = actual
-    df["comp-1"] = z[:, 0]
-    df["comp-2"] = z[:, 1]
-    sns.scatterplot(x="comp-1", y="comp-2", hue=df.y.tolist(),
-                    palette=sns.color_palette("hls", 10),
-                    data=df).set(title="{0} MNIST data T-SNE projection".format(model.mode))
-    plt.show()
-
-    reassignment, accuracy = cluster_accuracy(actual, predicted)
-
-    print("Final DEC accuracy: %s" % accuracy)
-    if not testing_mode:
-        predicted_reassigned = [reassignment[item] for item in predicted]  # TODO numpify
-        confusion = confusion_matrix(actual, predicted_reassigned)
-        normalised_confusion = (confusion.astype("float") / confusion.sum(axis=1)[:, np.newaxis])
-        confusion_id = uuid.uuid4().hex
-        sns.heatmap(normalised_confusion).get_figure().savefig("confusion_%s.png" % confusion_id)
+        tsne = TSNE(n_components=2, verbose=1, random_state=123)
+        z = tsne.fit_transform(embeddings)
+        df = pd.DataFrame()
+        df["y"] = actual
+        df["comp-1"] = z[:, 0]
+        df["comp-2"] = z[:, 1]
+        sns.scatterplot(x="comp-1", y="comp-2", hue=df.y.tolist(),
+                        palette=sns.color_palette("hls", 10),
+                        data=df).set(title="{0} MNIST data T-SNE projection".format(model.mode))
         plt.show()
-        print("Writing out confusion diagram with UUID: %s" % confusion_id)
-        writer.close()
+
+        reassignment, accuracy = cluster_accuracy(actual, predicted)
+
+        print("Final IDEC (lambda {0}) accuracy: {1}".format(lambda_.item(), accuracy))
+        if not testing_mode:
+            predicted_reassigned = [reassignment[item] for item in predicted]  # TODO numpify
+            confusion = confusion_matrix(actual, predicted_reassigned)
+            normalised_confusion = (confusion.astype("float") / confusion.sum(axis=1)[:, np.newaxis])
+            confusion_id = uuid.uuid4().hex
+            sns.heatmap(normalised_confusion).get_figure().savefig("confusion_%s.png" % confusion_id)
+            plt.show()
+            print("Writing out confusion diagram with UUID: %s" % confusion_id)
+            writer.close()
 
 
 if __name__ == "__main__":
     arg = argparse.ArgumentParser()
     arg.add_argument("--cuda", help="whether to use CUDA (default False).", type=bool, default=False)
     arg.add_argument("--batch-size", help="training batch size (default 256).", type=int, default=256)
-    arg.add_argument("--pretrain-epochs", help="number of pretraining epochs (default 300).", type=int, default=200, )
+    arg.add_argument("--pretrain-epochs", help="number of pretraining epochs (default 300).", type=int, default=2, )
     arg.add_argument("--finetune-epochs", help="number of finetune epochs (default 500).", type=int, default=300, )
     arg.add_argument("--clustering-epochs", help="number of finetune epochs (default 500).", type=int, default=500, )
     arg.add_argument("--testing-mode", help="whether to run in testing mode (default False).", type=bool, default=False, )

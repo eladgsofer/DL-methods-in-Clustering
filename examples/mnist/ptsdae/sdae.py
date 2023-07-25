@@ -5,9 +5,9 @@ import torch
 import torch.nn as nn
 
 
-def build_units(
-    dimensions: Iterable[int], activation: Optional[torch.nn.Module]
-) -> List[torch.nn.Module]:
+def build_units(dimensions: Iterable[int],
+                activation: Optional[torch.nn.Module],
+                mode: str = 'Linear') -> List[torch.nn.Module]:
     """
     Given a list of dimensions and optional activation, return a list of units where each unit is a linear
     layer followed by an activation layer.
@@ -18,15 +18,13 @@ def build_units(
     """
 
     def single_unit(in_dimension: int, out_dimension: int) -> torch.nn.Module:
-        unit = [("linear", nn.Linear(in_dimension, out_dimension))]
+        unit = [(mode.lower(), getattr(nn, mode)(in_dimension, out_dimension))]
         if activation is not None:
             unit.append(("activation", activation))
         return nn.Sequential(OrderedDict(unit))
 
-    return [
-        single_unit(embedding_dimension, hidden_dimension)
-        for embedding_dimension, hidden_dimension in sliding_window(2, dimensions)
-    ]
+    return [single_unit(embedding_dimension, hidden_dimension)
+            for embedding_dimension, hidden_dimension in sliding_window(2, dimensions)]
 
 
 def default_initialise_weight_bias_(
@@ -52,6 +50,7 @@ class StackedDenoisingAutoEncoder(nn.Module):
         final_activation: Optional[torch.nn.Module] = nn.ReLU(),
         weight_init: Callable[[torch.Tensor, torch.Tensor, float], None] = default_initialise_weight_bias_,
         gain: float = nn.init.calculate_gain("relu"),
+        mode: mode='Linear'
     ):
         """
         Autoencoder composed of a symmetric decoder and encoder components accessible via the encoder and decoder
@@ -69,13 +68,15 @@ class StackedDenoisingAutoEncoder(nn.Module):
         self.dimensions = dimensions
         self.embedding_dimension = dimensions[0]
         self.hidden_dimension = dimensions[-1]
+        self.mode = mode
         # construct the encoder
-        encoder_units = build_units(self.dimensions[:-1], activation)
-        encoder_units.extend(build_units([self.dimensions[-2], self.dimensions[-1]], None))
+        encoder_units = build_units(self.dimensions[:-1], activation, mode=self.mode)
+        encoder_units.extend(build_units([self.dimensions[-2], self.dimensions[-1]], None, mode=self.mode))
         self.encoder = nn.Sequential(*encoder_units)
+
         # construct the decoder
-        decoder_units = build_units(reversed(self.dimensions[1:]), activation)
-        decoder_units.extend(build_units([self.dimensions[1], self.dimensions[0]], final_activation))
+        decoder_units = build_units(reversed(self.dimensions[1:]), activation, mode=self.mode)
+        decoder_units.extend(build_units([self.dimensions[1], self.dimensions[0]], final_activation, mode=self.mode))
         self.decoder = nn.Sequential(*decoder_units)
         # initialise the weights and biases in the layers
         for layer in concat([self.encoder, self.decoder]):
@@ -91,8 +92,7 @@ class StackedDenoisingAutoEncoder(nn.Module):
         """
         if (index > len(self.dimensions) - 2) or (index < 0):
             raise ValueError(
-                "Requested subautoencoder cannot be constructed, index out of range."
-            )
+                "Requested subautoencoder cannot be constructed, index out of range.")
         return self.encoder[index].linear, self.decoder[-(index + 1)].linear
 
     def forward(self, batch: torch.Tensor) -> torch.Tensor:
