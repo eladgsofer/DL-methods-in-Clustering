@@ -50,7 +50,7 @@ class StackedDenoisingAutoEncoder(nn.Module):
         final_activation: Optional[torch.nn.Module] = nn.ReLU(),
         weight_init: Callable[[torch.Tensor, torch.Tensor, float], None] = default_initialise_weight_bias_,
         gain: float = nn.init.calculate_gain("relu"),
-        mode: mode='Linear'
+        mode: str='Linear'
     ):
         """
         Autoencoder composed of a symmetric decoder and encoder components accessible via the encoder and decoder
