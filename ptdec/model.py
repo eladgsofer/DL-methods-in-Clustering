@@ -92,7 +92,7 @@ def train(
             target = target_distribution(output).detach()
             clustering_loss = cluster_loss_func(output.log(), target) / output.shape[0]
 
-            if model.mode == 'IDEC':
+            if model.mode in ['IDEC', 'DCEC']:
                 x_i = batch
                 x_i_hat = model.decoder(model.encoder(batch))
                 structure_loss = struct_loss_func(x_i, x_i_hat)

@@ -100,3 +100,79 @@ class StackedDenoisingAutoEncoder(nn.Module):
         return self.decoder(encoded)
 
 
+# Convolutional autoencoder directly from DCEC article
+class ConvolutionAutoEncoder(nn.Module):
+    def __init__(self, input_shape=[28, 28, 1], num_clusters=10,
+                 filters=[32, 64, 128], leaky=True, neg_slope=0.01,
+                 weight_init: Callable[[torch.Tensor, torch.Tensor, float], None] = default_initialise_weight_bias_,
+                 gain: float = nn.init.calculate_gain("relu"),
+                 activations=False, bias=True):
+
+        super(ConvolutionAutoEncoder, self).__init__()
+        self.activations = activations
+        # bias = True
+        self.pretrained = False
+        self.num_clusters = num_clusters
+        self.input_shape = input_shape
+        self.filters = filters
+
+        self.sig = nn.Sigmoid()
+        self.tanh = nn.Tanh()
+
+        # Encoder
+        self.conv1 = nn.Conv2d(input_shape[2], filters[0], 5, stride=2, padding=2, bias=bias)
+        if leaky:
+            self.relu = nn.LeakyReLU(negative_slope=neg_slope)
+        else:
+            self.relu = nn.ReLU(inplace=False)
+
+        self.conv2 = nn.Conv2d(filters[0], filters[1], 5, stride=2, padding=2, bias=bias)
+        self.conv3 = nn.Conv2d(filters[1], filters[2], 3, stride=2, padding=0, bias=bias)
+        lin_features_len = ((input_shape[0] // 2 // 2 - 1) // 2) * ((input_shape[1] // 2 // 2 - 1) // 2) * filters[2]
+        self.embedding_linear_layer = nn.Linear(lin_features_len, num_clusters, bias=bias)
+
+        self.encoder_a = nn.Sequential(self.conv1, self.relu, self.conv2, self.relu, self.conv3, self.sig)
+
+        # Decoder
+        self.de_embedding_linear_layer = nn.Linear(num_clusters, lin_features_len, bias=bias)
+        out_pad = 1 if input_shape[0] // 2 // 2 % 2 == 0 else 0
+
+        self.deconv3 = nn.ConvTranspose2d(filters[2], filters[1], 3, stride=2, padding=0, output_padding=out_pad,
+                                          bias=bias)
+        out_pad = 1 if input_shape[0] // 2 % 2 == 0 else 0
+
+        self.deconv2 = nn.ConvTranspose2d(filters[1], filters[0], 5, stride=2, padding=2, output_padding=out_pad,
+                                          bias=bias)
+        out_pad = 1 if input_shape[0] % 2 == 0 else 0
+        self.deconv1 = nn.ConvTranspose2d(filters[0], input_shape[2], 5, stride=2, padding=2, output_padding=out_pad,
+                                          bias=bias)
+
+        self.decoder_a = nn.Sequential(self.de_embedding_linear_layer, self.relu)
+        self.decoder_b = nn.Sequential(self.deconv3, self.relu, self.deconv2, self.relu, self.deconv1, self.tanh)
+
+        for layer in concat([self.encoder_a, self.decoder_a, self.decoder_b]):
+            try:
+                weight_init(layer.weight, layer.bias, gain)
+            except Exception as ex:
+                print(str(ex))
+
+    def forward(self, x):
+        return self.decoder(self.encoder(x))
+
+    def encoder(self, x):
+        # Encoder convolutional stage
+        x = self.encoder_a(x)
+        # Flatten
+        x = x.view(x.size(0), -1)
+        # Linear Embedding layer
+        x = self.embedding_linear_layer(x)
+        return x
+
+    def decoder(self, x):
+        # Decoder stage
+        x = self.decoder_a(x)
+        x = x.view(x.size(0), self.filters[2], ((self.input_shape[0] // 2 // 2 - 1) // 2),
+                   ((self.input_shape[0] // 2 // 2 - 1) // 2))
+        x_hat = self.decoder_b(x)
+        return x_hat
+

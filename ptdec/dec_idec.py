@@ -20,7 +20,7 @@ class DEC_IDEC(nn.Module):
         :param hidden_dimension: hidden dimension, output of the encoder
         :param encoder: encoder to use
         :param decoder: decoder to use used, only in IDEC mode
-        :param mode: IDEC/DEC mode - influencing which Loss to be used
+        :param mode: IDEC/DEC/DCEC mode - influencing which Loss to be used
         :param mode: lambda_ weight for structure loss
         :param alpha: parameter representing the degrees of freedom in the t-distribution, default 1.0
         """

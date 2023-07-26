@@ -7,6 +7,7 @@ from tqdm import tqdm
 
 from ptsdae.dae import DenoisingAutoencoder
 from ptsdae.sdae import StackedDenoisingAutoEncoder
+from ptsdae.cae import ConvolutionAutoEncoder
 
 
 def train(
@@ -224,7 +225,9 @@ def predict(
             batch = batch[0]
         if cuda:
             batch = batch.cuda(non_blocking=True)
-        batch = batch.squeeze(1).view(batch.size(0), -1)
+        if type(model)!=ConvolutionAutoEncoder:
+            # no need to squeeze since for Convolution we need it 28x28 Conv2d receives a WxH format.
+            batch = batch.squeeze(1).view(batch.size(0), -1)
         if encode:
             output = model.encode(batch)
         else:
