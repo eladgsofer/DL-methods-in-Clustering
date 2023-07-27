@@ -5,9 +5,9 @@ import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
 from tqdm import tqdm
 
-from ptsdae.dae import DenoisingAutoencoder
-from ptsdae.sdae import StackedDenoisingAutoEncoder
-from ptsdae.cae import ConvolutionAutoEncoder
+from models.dae import DenoisingAutoencoder
+from models.sdae import StackedDenoisingAutoEncoder
+from models.cae import ConvolutionAutoEncoder
 
 
 def train(

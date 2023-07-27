@@ -13,12 +13,12 @@ from torchvision.datasets import MNIST
 from tensorboardX import SummaryWriter
 import uuid
 
-from ptdec.dec_idec import DEC_IDEC
-from ptdec.model import train, predict
-from ptsdae.sdae import StackedDenoisingAutoEncoder
-from ptsdae.cae import ConvolutionAutoEncoder
-import ptsdae.model as ae
-from ptdec.utils import cluster_accuracy
+from dec_clustering.dec_idec_dcec import DEC_IDEC_DCEC
+from dec_clustering.model import train, predict
+from models.sdae import StackedDenoisingAutoEncoder
+from models.cae import ConvolutionAutoEncoder
+import models.model as ae
+from dec_clustering.utils import cluster_accuracy
 
 from sklearn.manifold import TSNE
 import seaborn as sns
@@ -97,9 +97,9 @@ def main(cuda, batch_size, pretrain_epochs, finetune_epochs, testing_mode, clust
         for lambda_ in np.linspace(0.2, 4, 6):
             print("{0} stage {1}".format(case_study, lambda_.item()))
             autoencoder = torch.load('{0}_ae_train.pt'.format(case_study))
-            model = DEC_IDEC(cluster_number=10, hidden_dimension=10, encoder=autoencoder.encoder,
-                             decoder=autoencoder.decoder,
-                             mode=case_study, lambda_=lambda_.item())
+            model = DEC_IDEC_DCEC(cluster_number=10, hidden_dimension=10, encoder=autoencoder.encoder,
+                                  decoder=autoencoder.decoder,
+                                  mode=case_study, lambda_=lambda_.item())
             if cuda:
                 model.cuda()
             dec_optimizer = SGD(model.parameters(), lr=0.01, momentum=0.9)
@@ -138,9 +138,9 @@ def main(cuda, batch_size, pretrain_epochs, finetune_epochs, testing_mode, clust
 
         print("DEC stage")
         autoencoder = torch.load('ae_train.pt')
-        model = DEC_IDEC(cluster_number=10, hidden_dimension=10, encoder=autoencoder.encoder,
-                         decoder=autoencoder.decoder,
-                         mode='DEC')
+        model = DEC_IDEC_DCEC(cluster_number=10, hidden_dimension=10, encoder=autoencoder.encoder,
+                              decoder=autoencoder.decoder,
+                              mode='DEC')
         if cuda:
             model.cuda()
         dec_optimizer = SGD(model.parameters(), lr=0.01, momentum=0.9)

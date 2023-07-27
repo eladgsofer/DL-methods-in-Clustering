@@ -1,10 +1,10 @@
 import torch
 import torch.nn as nn
 
-from ptdec.cluster import ClusterAssignment
+from dec_clustering.cluster import ClusterAssignment
 
 
-class DEC_IDEC(nn.Module):
+class DEC_IDEC_DCEC(nn.Module):
     def __init__(self, cluster_number: int,
                  hidden_dimension: int,
                  encoder: torch.nn.Module,
@@ -24,7 +24,7 @@ class DEC_IDEC(nn.Module):
         :param mode: lambda_ weight for structure loss
         :param alpha: parameter representing the degrees of freedom in the t-distribution, default 1.0
         """
-        super(DEC_IDEC, self).__init__()
+        super(DEC_IDEC_DCEC, self).__init__()
         self.encoder = encoder
         self.decoder = decoder
         self.hidden_dimension = hidden_dimension
